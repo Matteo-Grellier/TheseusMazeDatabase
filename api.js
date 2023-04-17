@@ -30,11 +30,7 @@ router.get('/apiGetAll', async (ctx) => {
             }));
             return { ...maze, rooms: roomsWithCases };
         }));
-        // create a JSON file containing the mazes at ../Scripts
-        fs.writeFile('../Assets/Scripts/maze.json', JSON.stringify(mazesWithRooms), (err) => {
-            if (err) throw err;
-            console.log('The file has been saved!');
-        });
+        console.log("Sucess !");
         ctx.body = mazesWithRooms;
     }
     finally {
