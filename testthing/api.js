@@ -2,7 +2,6 @@ const Koa = require('koa');
 const Router = require('koa-router');
 const Logger = require('koa-logger');
 const { Pool } = require('pg');
-const { koaBody } = require('koa-body');
 
 const app = new Koa();
 const router = new Router();
@@ -19,8 +18,8 @@ router.get('/apiGetAll', async (ctx) => {
     const client = await app.pool.connect();
     try {
         const res = await client.query('SELECT * FROM maze');
-        const mazesRows = res.rows;
-        const mazes = await Promise.all(mazesRows.map(async (maze) => {
+        const mazes = res.rows;
+        const mazesWithRooms = await Promise.all(mazes.map(async (maze) => {
             const res = await client.query('SELECT * FROM room WHERE mazeid = $1', [maze.mazeid]);
             const rooms = res.rows;
             const roomsWithCases = await Promise.all(rooms.map(async (room) => {
@@ -31,7 +30,7 @@ router.get('/apiGetAll', async (ctx) => {
             return { ...maze, rooms: roomsWithCases };
         }));
         console.log("Sucess !");
-        ctx.body = { mazes };
+        ctx.body = mazesWithRooms;
     }
     finally {
         client.release();
@@ -58,11 +57,29 @@ router.get('/apiGetMaze/:mazeid', async (ctx) => {
     }
 });
 
-router.post('/createMaze', koaBody(), async (ctx) => {
+router.put('/apiPutMaze/:mazeid', async (ctx) => {
     const client = await app.pool.connect();
     try {
-        var mazes = ctx.body = ctx.request.body.mazes;
-        console.log(mazes);
+        const maze = ctx.request.body;
+        await client.query('UPDATE maze SET mazeid = $1, mazeName = $2 WHERE mazeid = $3', [maze.mazeid, maze.mazeName, ctx.params.mazeid]);
+        await Promise.all(maze.rooms.map(async (room) => {
+            await client.query('UPDATE room SET x = $1, y = $2, width = $3, height = $4 WHERE roomid = $5', [room.x, room.y, room.width, room.height, room.roomid]);
+            await Promise.all(room.cases.map(async (cell) => {
+                await client.query('UPDATE cell SET x = $1, y = $2, type = $3 WHERE cellid = $4', [cell.x, cell.y, cell.type, cell.cellid]);
+            }));
+        }));
+        console.log("Sucess !");
+        ctx.body = "Sucess !";
+    }
+    finally {
+        client.release();
+    }
+});
+
+router.post('/apiPostAll', async (ctx) => {
+    const client = await app.pool.connect();
+    try {
+        const mazes = ctx.request.body;
         await Promise.all(mazes.map(async (maze) => {
             const res = await client.query('INSERT INTO public.maze (mazeid) VALUES($1);', [maze.mazeid]);
             const mazeid = res.rows[0].mazeid;
@@ -87,6 +104,6 @@ app.use(Logger());
 app.use(router.routes());
 app.use(router.allowedMethods());
 
-app.listen(3001, () => {
-    console.log('Server running on port 3001');
+app.listen(3005, () => {
+    console.log('Server running on port 3005');
 });
