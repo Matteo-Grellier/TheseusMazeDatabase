@@ -62,15 +62,15 @@ router.post('/createMaze', koaBody(), async (ctx) => {
     const client = await app.pool.connect();
     try {
         var mazes = ctx.body = ctx.request.body.mazes;
-        console.log(mazes);
         await Promise.all(mazes.map(async (maze) => {
-            const res = await client.query('INSERT INTO public.maze (mazeid) VALUES($1);', [maze.mazeid]);
+            const res = await client.query('INSERT INTO public.maze ("mazeName") VALUES($1) RETURNING mazeid;', [maze.mazeName]);
             const mazeid = res.rows[0].mazeid;
+            console.log(res.rows);
             await Promise.all(maze.rooms.map(async (room) => {
-                const res = await client.query('INSERT INTO public.room (roomid, mazeid, "leftDoor", "upDoor", "rightDoor", "downDoor", "isEndRoom") VALUES($1,$2,$3,$4);', [room.roomid, room.mazeid, room.leftDoor, room.upDoor, room.rightDoor, room.rightDoor, room.downDoor, room.isEndRoom]);
+                const res = await client.query('INSERT INTO public.room ("mazeid" ,"leftDoor", "upDoor", "rightDoor", "downDoor", "isEndRoom") VALUES($1,$2,$3,$4,$5,$6) RETURNING roomid;', [mazeid, room.leftDoor, room.upDoor, room.rightDoor, room.downDoor, room.isEndRoom]);
                 const roomid = res.rows[0].roomid;
                 await Promise.all(room.cases.map(async (cell) => {
-                    await client.query('INSERT INTO cell (cellid, roomid, state) VALUES ($1, $2, $3)', [cell.roomid, cell.roomid, cell.state]);
+                    await client.query('INSERT INTO cell (roomid, state) VALUES ($1, $2)', [roomid, cell.state]);
                 }));
             }));
         }));
@@ -80,7 +80,22 @@ router.post('/createMaze', koaBody(), async (ctx) => {
     finally {
         client.release();
     }
-});
+})
+
+router.delete('/deleteMaze/:mazeid', koaBody(), async (ctx) => {
+    const client = await app.pool.connect();
+    try {
+        var mazes = ctx.body = ctx.request.body.mazes;
+        const res = await client.query('DELETE FROM public.maze WHERE mazeid=$1;', [ctx.params.mazeid]);
+        console.log("Sucess !");
+        ctx.body = "Sucess !";
+    }
+    finally {
+        client.release();
+    }
+})
+
+
 
 // Development logging
 app.use(Logger());
